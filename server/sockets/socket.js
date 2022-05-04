@@ -4,54 +4,57 @@ const { createMessage } = require('../utilities/utilities');
 
 const users = new Users();
 
-
 io.on('connection', (client) => {
 
     client.on('getInChat', (data, callback) => {
-        
-        if( !data.name || !data.sala) {
+
+
+        if (!data.nombre || !data.sala) {
             return callback({
                 error: true,
-                message: 'El nombre es necesario'
+                mensaje: 'El nombre/sala es necesario'
             });
         }
 
+        client.join(data.sala);
 
-        client.join(data.name);
-
-        users.addPerson( client.id, data.name, data.sala );
-
-        
+        users.addPerson(client.id, data.nombre, data.sala);
 
         client.broadcast.to(data.sala).emit('listPeople', users.getPersonByRoom(data.sala));
+        client.broadcast.to(data.sala).emit('createMessage', createMessage('Administrador', `${ data.nombre } se unió`));
+
         callback(users.getPersonByRoom(data.sala));
+
     });
 
-    client.on('createMessage', (data) => {
+    client.on('createMessage', (data, callback) => {
 
         let person = users.getPerson(client.id);
-        let message = createMessage(person.name, data.message);
-        client.broadcast.to(person.sala).emit('createMessage',message);
-    });
 
+        let message = createMessage(person.name, data.message);
+        client.broadcast.to(person.sala).emit('createMessage', message);
+        
+
+        callback(message);
+    });
 
 
     client.on('disconnect', () => {
 
+        let deletedPerson = users.removePerson(client.id);
 
-        let deletedPerson = users.removePerson( client.id );
-
-
-        client.broadcast.to(deletedPerson.sala).emit('createMessage', createMessage('Administrador',`${deletedPerson.name} salio`));
+        client.broadcast.to(deletedPerson.sala).emit('createMessage', createMessage('Administrador', `${ deletedPerson.name } salió`));
         client.broadcast.to(deletedPerson.sala).emit('listPeople', users.getPersonByRoom(deletedPerson.sala));
     });
 
 
 
-    //Mensaje privado 
+    // Mensajes privados
     client.on('private-message', data => {
 
-        let person = users.getPerson(client.id);
-        client.broadcast.to(data.para).emit('private-message', createMessage(person.name.trim(),data.message));
+        let persona = users.getPerson(client.id);
+        client.broadcast.to(data.para).emit('private-message', createMessage(persona.nombre, data.mensaje));
+
     });
+
 });
